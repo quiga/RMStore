@@ -36,7 +36,7 @@ Using [Carthage](https://github.com/Carthage/Carthage):
 
 Note that the Carthage framework target does not include [Receipt Verification](https://github.com/robotmedia/RMStore/wiki/Receipt-verification) code as this code should always be linked directly into your application and not be in a dynamic framework for security reasons.
 
-##StoreKit with blocks
+## StoreKit with blocks
 
 RMStore adds blocks to all asynchronous StoreKit operations.
 
