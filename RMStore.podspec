@@ -14,6 +14,8 @@ Pod::Spec.new do |s|
 
   s.subspec 'Core' do |core|
     core.source_files = 'RMStore/*.{h,m}'
+    core.dependency 'LetSeeHelpers/ObjCHelpers'
+#    core.dependency 'OpenSSL-Universal/Framework'
   end
 
   s.subspec 'KeychainPersistence' do |kp|
@@ -31,7 +33,7 @@ Pod::Spec.new do |s|
     arv.dependency 'RMStore/Core'
     arv.platform = :ios, '7.0'
     arv.source_files = 'RMStore/Optional/RMStoreAppReceiptVerifier.{h,m}', 'RMStore/Optional/RMAppReceipt.{h,m}'
-    arv.dependency 'OpenSSL', '~> 1.0'
+    arv.dependency 'OpenSSL-Universal/Framework'
   end
 
   s.subspec 'TransactionReceiptVerifier' do |trv|

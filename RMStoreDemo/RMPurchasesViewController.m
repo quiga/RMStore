@@ -31,34 +31,45 @@
     NSArray *_productIdentifiers;
 }
 
-- (void)viewDidLoad
-{
+- (void)viewDidLoad {
+	
     [super viewDidLoad];
-    self.title = NSLocalizedString(@"Purchases", @"");
+	
+	self.title = NSLocalizedString(@"Purchases", @"");
     
-    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:NSLocalizedString(@"Restore", @"") style:UIBarButtonItemStyleBordered target:self action:@selector(restoreAction)];
-    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemTrash target:self action:@selector(trashAction)];
+    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:NSLocalizedString(@"Restore", @"")
+																			 style:UIBarButtonItemStyleBordered
+																			target:self
+																			action:@selector(restoreAction)];
+	
+	self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemTrash
+																						   target:self
+																						   action:@selector(trashAction)];
     
-    RMStore *store = [RMStore defaultStore];
-    [store addStoreObserver:self];
-    _persistence = store.transactionPersistor;
-    _productIdentifiers = _persistence.purchasedProductIdentifiers.allObjects;
+    RMStore * store = [RMStore defaultStore];
+	
+	[store addStoreObserver:self];
+	
+	_persistence = store.transactionPersistor;
+	
+	_productIdentifiers = _persistence.purchasedProductIdentifiers.allObjects;
 }
 
-- (void)dealloc
-{
+- (void)dealloc {
     [[RMStore defaultStore] removeStoreObserver:self];
 }
 
 #pragma mark Actions
 
-- (void)restoreAction
-{
+- (void)restoreAction {
+	
     [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
-    [[RMStore defaultStore] restoreTransactionsOnSuccess:^(NSArray *transactions) {
+	
+	[[RMStore defaultStore] restoreTransactionsOnSuccess:^(NSArray *transactions) {
         [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;        
         [self.tableView reloadData];
-    } failure:^(NSError *error) {
+		
+	} failure:^(NSError *error) {
         [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
         UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Restore Transactions Failed", @"")
                                                             message:error.localizedDescription
@@ -69,22 +80,23 @@
     }];
 }
 
-- (void)trashAction
-{
+- (void)trashAction {
+	
     [_persistence removeTransactions];
-    _productIdentifiers = _persistence.purchasedProductIdentifiers.allObjects;
-    [self.tableView reloadData];
+	
+	_productIdentifiers = _persistence.purchasedProductIdentifiers.allObjects;
+	
+	[self.tableView reloadData];
 }
 
 #pragma mark Table view data source
 
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
-{
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     return _productIdentifiers.count;
 }
 
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
-{
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+	
     static NSString *CellIdentifier = @"Cell";
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:CellIdentifier];
     if (cell == nil) {
@@ -100,8 +112,8 @@
 
 #pragma mark Table view delegate
 
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
-{
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+	
     NSString *productID = _productIdentifiers[indexPath.row];
     const BOOL consumed = [_persistence consumeProductOfIdentifier:productID];
     if (consumed)
@@ -112,13 +124,11 @@
 
 #pragma mark RMStoreObserver
 
-- (void)storeProductsRequestFinished:(NSNotification*)notification
-{
+- (void)storeProductsRequestFinished:(NSNotification*)notification {
     [self.tableView reloadData];
 }
 
-- (void)storePaymentTransactionFinished:(NSNotification*)notification
-{
+- (void)storePaymentTransactionFinished:(NSNotification*)notification {
     _productIdentifiers = _persistence.purchasedProductIdentifiers.allObjects;
     [self.tableView reloadData];
 }

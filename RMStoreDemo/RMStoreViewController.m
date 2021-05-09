@@ -26,10 +26,11 @@
     BOOL _productsRequestFinished;
 }
 
-- (void)viewDidLoad
-{
+- (void)viewDidLoad {
+	
     [super viewDidLoad];
-    self.title = NSLocalizedString(@"Store", @"");
+	
+	self.title = NSLocalizedString(@"Store", @"");
     
 #warning Replace with your product ids.
     _products = @[@"net.robotmedia.test.consumable",
@@ -37,11 +38,13 @@
                   @"net.robotmedia.test.nonconsumable.2"];
     
     [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
-    [[RMStore defaultStore] requestProducts:[NSSet setWithArray:_products] success:^(NSArray *products, NSArray *invalidProductIdentifiers) {
+	
+	[[RMStore defaultStore] requestProducts:[NSSet setWithArray:_products] success:^(NSArray *products, NSArray *invalidProductIdentifiers) {
         [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
         _productsRequestFinished = YES;
         [self.tableView reloadData];
-    } failure:^(NSError *error) {
+		
+	} failure:^(NSError *error) {
         [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
         UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Products Request Failed", @"")
                                                            message:error.localizedDescription
@@ -54,13 +57,11 @@
 
 #pragma mark Table view data source
 
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
-{
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     return _productsRequestFinished ? _products.count : 0;
 }
 
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
-{
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     static NSString *CellIdentifier = @"Cell";
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:CellIdentifier];
     if (cell == nil)
@@ -76,15 +77,18 @@
 
 #pragma mark Table view delegate
 
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
-{
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+	
     if (![RMStore canMakePayments]) return;
     
     NSString *productID = _products[indexPath.row];
-    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
-    [[RMStore defaultStore] addPayment:productID success:^(SKPaymentTransaction *transaction) {
+	
+	[UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+	
+	[[RMStore defaultStore] addPayment:productID success:^(SKPaymentTransaction *transaction) {
         [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
-    } failure:^(SKPaymentTransaction *transaction, NSError *error) {
+		
+	} failure:^(SKPaymentTransaction *transaction, NSError *error) {
         [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
         UIAlertView *alerView = [[UIAlertView alloc] initWithTitle:NSLocalizedString(@"Payment Transaction Failed", @"")
                                                            message:error.localizedDescription

@@ -36,27 +36,38 @@
     [self configureStore];
     
     self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-    UIViewController *storeVC = [[RMStoreViewController alloc] initWithNibName:@"RMStoreViewController" bundle:nil];
-    UINavigationController *vc1 = [[UINavigationController alloc] initWithRootViewController:storeVC];
+	
+	UIViewController *storeVC = [[RMStoreViewController alloc] initWithNibName:@"RMStoreViewController"
+																		bundle:nil];
+	
+	UINavigationController *vc1 = [[UINavigationController alloc] initWithRootViewController:storeVC];
     
     UIViewController *purchasesVC = [[RMPurchasesViewController alloc] initWithNibName:@"RMPurchasesViewController" bundle:nil];
-    UINavigationController *vc2 = [[UINavigationController alloc] initWithRootViewController:purchasesVC];
+	
+	UINavigationController *vc2 = [[UINavigationController alloc] initWithRootViewController:purchasesVC];
     
     self.tabBarController = [[UITabBarController alloc] init];
-    self.tabBarController.viewControllers = @[vc1, vc2];
-    self.window.rootViewController = self.tabBarController;
-    [self.window makeKeyAndVisible];
-    return YES;
+	
+	self.tabBarController.viewControllers = @[vc1, vc2];
+	
+	self.window.rootViewController = self.tabBarController;
+	
+	[self.window makeKeyAndVisible];
+	
+	return YES;
 }
 
-- (void)configureStore
-{
+- (void)configureStore {
+	
     const BOOL iOS7OrHigher = floor(NSFoundationVersionNumber) > NSFoundationVersionNumber_iOS_6_1;
-    _receiptVerifier = iOS7OrHigher ? [[RMStoreAppReceiptVerifier alloc] init] : [[RMStoreTransactionReceiptVerifier alloc] init];
-    [RMStore defaultStore].receiptVerifier = _receiptVerifier;
+	
+	_receiptVerifier = iOS7OrHigher ? [[RMStoreAppReceiptVerifier alloc] init] : [[RMStoreTransactionReceiptVerifier alloc] init];
+	
+	[RMStore defaultStore].receiptVerifier = _receiptVerifier;
     
     _persistence = [[RMStoreKeychainPersistence alloc] init];
-    [RMStore defaultStore].transactionPersistor = _persistence;
+	
+	[RMStore defaultStore].transactionPersistor = _persistence;
 }
 
 @end

@@ -19,6 +19,7 @@
 //
 
 #import "RMStore.h"
+#import <LetSeeHelpers/LSSafeBlock.h>
 
 NSString *const RMStoreErrorDomain = @"net.robotmedia.store";
 NSInteger const RMStoreErrorCodeDownloadCanceled = 300;
@@ -138,6 +139,8 @@ typedef void (^RMStoreSuccessBlock)();
     
     NSMutableArray *_storedStorePayments;
     
+    NSMutableSet<NSString *> * _restoredTransactionProcessed;
+    NSMutableDictionary<NSString *, NSNumber *> * _downloadingStates;
     NSInteger _pendingRestoredTransactionsCount;
     BOOL _restoredCompletedTransactionsFinished;
     
@@ -158,6 +161,8 @@ typedef void (^RMStoreSuccessBlock)();
         _productsRequestDelegates = [NSMutableSet set];
         _restoredTransactions = [NSMutableArray array];
         _storedStorePayments = [NSMutableArray array];
+        _restoredTransactionProcessed = [NSMutableSet<NSString *> set];
+        _downloadingStates = [NSMutableDictionary<NSString *, NSNumber *> dictionary];
         [[SKPaymentQueue defaultQueue] addTransactionObserver:self];
     }
     return self;
@@ -264,11 +269,17 @@ typedef void (^RMStoreSuccessBlock)();
 - (void)restoreTransactionsOnSuccess:(void (^)(NSArray *transactions))successBlock
                              failure:(void (^)(NSError *error))failureBlock
 {
+    RMStoreLog(@"restoreTransactionsOnSuccess");
     _restoredCompletedTransactionsFinished = NO;
-    _pendingRestoredTransactionsCount = 0;
+    [LSSafeBlock runBlockOnMainThreadSync:^{
+        self->_pendingRestoredTransactionsCount = 0;
+    }];
+    _restoredTransactionProcessed = [NSMutableSet<NSString *> set];
+    [_downloadingStates removeAllObjects];
     _restoredTransactions = [NSMutableArray array];
     _restoreTransactionsSuccessBlock = successBlock;
     _restoreTransactionsFailureBlock = failureBlock;
+    RMStoreLog(@"restoreTransactionsOnSuccess %@", [SKPaymentQueue defaultQueue].transactions);
     [[SKPaymentQueue defaultQueue] restoreCompletedTransactions];
 }
 
@@ -276,9 +287,14 @@ typedef void (^RMStoreSuccessBlock)();
                         onSuccess:(void (^)(NSArray *transactions))successBlock
                           failure:(void (^)(NSError *error))failureBlock
 {
+    RMStoreLog(@"restoreTransactionsOfUser");
     NSAssert([[SKPaymentQueue defaultQueue] respondsToSelector:@selector(restoreCompletedTransactionsWithApplicationUsername:)], @"restoreCompletedTransactionsWithApplicationUsername: not supported in this iOS version. Use restoreTransactionsOnSuccess:failure: instead.");
     _restoredCompletedTransactionsFinished = NO;
-    _pendingRestoredTransactionsCount = 0;
+        [LSSafeBlock runBlockOnMainThreadSync:^{
+        self->_pendingRestoredTransactionsCount = 0;
+    }];
+    _restoredTransactionProcessed = [NSMutableSet<NSString *> set];
+    [_downloadingStates removeAllObjects];
     _restoreTransactionsSuccessBlock = successBlock;
     _restoreTransactionsFailureBlock = failureBlock;
     [[SKPaymentQueue defaultQueue] restoreCompletedTransactionsWithApplicationUsername:userIdentifier];
@@ -377,8 +393,10 @@ typedef void (^RMStoreSuccessBlock)();
 
 - (void)paymentQueue:(SKPaymentQueue *)queue updatedTransactions:(NSArray *)transactions
 {
+    RMStoreLog(@"updatedTransactions::transactions: %@", transactions)
     for (SKPaymentTransaction *transaction in transactions)
     {
+        RMStoreLog(@"transaction.transactionState: %ld", (long)transaction.transactionState)
         switch (transaction.transactionState)
         {
             case SKPaymentTransactionStatePurchased:
@@ -388,7 +406,9 @@ typedef void (^RMStoreSuccessBlock)();
                 [self didFailTransaction:transaction queue:queue error:transaction.error];
                 break;
             case SKPaymentTransactionStateRestored:
-                [self didRestoreTransaction:transaction queue:queue];
+                
+                if (![_restoredTransactionProcessed containsObject:transaction.payment.productIdentifier])
+                    [self didRestoreTransaction:transaction queue:queue];
                 break;
             case SKPaymentTransactionStateDeferred:
                 [self didDeferTransaction:transaction];
@@ -427,6 +447,17 @@ typedef void (^RMStoreSuccessBlock)();
 {
     for (SKDownload *download in downloads)
     {
+        NSNumber * tmp = [self->_downloadingStates objectForKey:download.contentIdentifier];
+        
+        if (tmp != nil) {
+            SKDownloadState state = (SKDownloadState)[tmp integerValue];
+            
+            if (state == download.downloadState && download.downloadState != SKDownloadStateActive)
+                continue;
+        }
+        
+        [self->_downloadingStates setObject:@(download.downloadState) forKey:download.contentIdentifier];
+        
         switch (download.downloadState)
         {
             case SKDownloadStateActive:
@@ -595,7 +626,13 @@ typedef void (^RMStoreSuccessBlock)();
 {
     RMStoreLog(@"transaction restored with product %@", transaction.originalTransaction.payment.productIdentifier);
     
-    _pendingRestoredTransactionsCount++;
+    [_restoredTransactionProcessed addObject:transaction.originalTransaction.payment.productIdentifier];
+    
+    [LSSafeBlock runBlockOnMainThreadSync:^{
+        self->_pendingRestoredTransactionsCount++;
+        RMStoreLog(@"pendingRestoredTransactionsCount++: %lu; %@", self->_pendingRestoredTransactionsCount, transaction.payment.productIdentifier);
+    }];
+
     if (self.receiptVerifier != nil)
     {
         [self.receiptVerifier verifyTransaction:transaction success:^{
@@ -638,7 +675,7 @@ typedef void (^RMStoreSuccessBlock)();
     }
 }
 
-- (void)didDownloadSelfHostedContentForTransaction:(SKPaymentTransaction *)transaction queue:(SKPaymentQueue*)queue
+- (void) didDownloadSelfHostedContentForTransaction:(SKPaymentTransaction *)transaction queue:(SKPaymentQueue*)queue
 {
     NSArray *downloads = [transaction respondsToSelector:@selector(downloads)] ? transaction.downloads : @[];
     if (downloads.count > 0)
@@ -658,6 +695,7 @@ typedef void (^RMStoreSuccessBlock)();
         SKPayment *payment = transaction.payment;
         NSString* productIdentifier = payment.productIdentifier;
         [queue finishTransaction:transaction];
+        
         [self.transactionPersistor persistTransaction:transaction];
         
         RMAddPaymentParameters *wrapper = [self popAddPaymentParametersForIdentifier:productIdentifier];
@@ -673,6 +711,8 @@ typedef void (^RMStoreSuccessBlock)();
             [self notifyRestoreTransactionFinishedIfApplicableAfterTransaction:transaction];
         }
     };
+    
+    RMStoreLog(@"finish transaction for product %@", transaction.payment.productIdentifier);
     
     if (self.transactionProcessor != nil) {
         [self.transactionProcessor processTransaction:transaction success:success failure:^(NSError *error) {
@@ -692,14 +732,28 @@ typedef void (^RMStoreSuccessBlock)();
 
 - (void)notifyRestoreTransactionFinishedIfApplicableAfterTransaction:(SKPaymentTransaction*)transaction
 {
+    RMStoreLog(@"notifyRestore... | transaction: %@", transaction);
+    RMStoreLog(@"notifyRestore... | transaction: %@", transaction.payment.productIdentifier);
+    RMStoreLog(@"notifyRestore... | restoredCompletedTransactionsFinished: %d", _restoredCompletedTransactionsFinished);
+    RMStoreLog(@"notifyRestore... | restoreTransactionsSuccessBlock: %@", _restoreTransactionsSuccessBlock);
     if (transaction != nil)
     {
         [_restoredTransactions addObject:transaction];
-        _pendingRestoredTransactionsCount--;
+        [LSSafeBlock runBlockOnMainThreadSync:^{
+            self->_pendingRestoredTransactionsCount--;
+            RMStoreLog(@"pendingRestoredTransactionsCount--: %ld", (long)self->_pendingRestoredTransactionsCount);
+        }];
     }
-    if (_restoredCompletedTransactionsFinished && _pendingRestoredTransactionsCount == 0)
+    
+    __block NSInteger tmp_pending = 0;
+    [LSSafeBlock runBlockOnMainThreadSync:^{
+        tmp_pending = self->_pendingRestoredTransactionsCount;
+    }];
+    
+    if (_restoredCompletedTransactionsFinished && tmp_pending == 0)
     { // Wait until all restored transations have been verified
         NSArray *restoredTransactions = [_restoredTransactions copy];
+        RMStoreLog(@"notifyRestore... | restoreTransactionsSuccessBlock: %@", _restoreTransactionsSuccessBlock);
         if (_restoreTransactionsSuccessBlock != nil)
         {
             _restoreTransactionsSuccessBlock(restoredTransactions);
